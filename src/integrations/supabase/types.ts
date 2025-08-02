@@ -16,61 +16,110 @@ export type Database = {
     Tables: {
       courses: {
         Row: {
+          course_id: number
           created_at: string
-          day_number: number
+          department_id: number | null
           description: string | null
-          id: string
           title: string
           total_locations: number | null
           updated_at: string
         }
         Insert: {
+          course_id: number
           created_at?: string
-          day_number: number
+          department_id?: number | null
           description?: string | null
-          id?: string
           title: string
           total_locations?: number | null
           updated_at?: string
         }
         Update: {
+          course_id?: number
           created_at?: string
-          day_number?: number
+          department_id?: number | null
           description?: string | null
-          id?: string
           title?: string
           total_locations?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_courses_department"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          created_at: string
+          description: string
+          id: number
+          image_url: string
+          manager_id: number | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: number
+          image_url: string
+          manager_id?: number | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: number
+          image_url?: string
+          manager_id?: number | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_departments_manager"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "managers"
+            referencedColumns: ["employee_id"]
+          },
+        ]
       }
       locations: {
         Row: {
           content: Json | null
-          course_id: string
+          course_id: number | null
           created_at: string
           description: string | null
-          id: string
+          int_id: number
+          location: string
+          location_id: number
           name: string
           order_index: number
           updated_at: string
         }
         Insert: {
           content?: Json | null
-          course_id: string
+          course_id?: number | null
           created_at?: string
           description?: string | null
-          id?: string
+          int_id?: number
+          location: string
+          location_id?: number
           name: string
           order_index: number
           updated_at?: string
         }
         Update: {
           content?: Json | null
-          course_id?: string
+          course_id?: number | null
           created_at?: string
           description?: string | null
-          id?: string
+          int_id?: number
+          location?: string
+          location_id?: number
           name?: string
           order_index?: number
           updated_at?: string
@@ -81,113 +130,129 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
-            referencedColumns: ["id"]
+            referencedColumns: ["course_id"]
           },
         ]
+      }
+      managers: {
+        Row: {
+          description: string
+          employee_id: number
+          name: string
+          photo: string | null
+        }
+        Insert: {
+          description: string
+          employee_id?: number
+          name: string
+          photo?: string | null
+        }
+        Update: {
+          description?: string
+          employee_id?: number
+          name?: string
+          photo?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
           created_at: string
-          employee_id: string | null
+          employee_id: number
           first_name: string | null
-          id: string
           last_name: string | null
           role: string | null
           updated_at: string
-          user_id: string
         }
         Insert: {
           created_at?: string
-          employee_id?: string | null
+          employee_id: number
           first_name?: string | null
-          id?: string
           last_name?: string | null
           role?: string | null
           updated_at?: string
-          user_id: string
         }
         Update: {
           created_at?: string
-          employee_id?: string | null
+          employee_id?: number
           first_name?: string | null
-          id?: string
           last_name?: string | null
           role?: string | null
           updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
       user_location_visits: {
         Row: {
-          id: string
-          location_id: string
+          employee_id: number | null
+          location_id: number
           quiz_score: number | null
-          user_id: string
           visited_at: string
         }
         Insert: {
-          id?: string
-          location_id: string
+          employee_id?: number | null
+          location_id: number
           quiz_score?: number | null
-          user_id: string
           visited_at?: string
         }
         Update: {
-          id?: string
-          location_id?: string
+          employee_id?: number | null
+          location_id?: number
           quiz_score?: number | null
-          user_id?: string
           visited_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_location_visits_location_id_fkey"
+            foreignKeyName: "fk_user_location_visits_location"
             columns: ["location_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "locations"
-            referencedColumns: ["id"]
+            referencedColumns: ["location_id"]
           },
         ]
       }
       user_progress: {
         Row: {
           completed_at: string | null
-          course_id: string
+          course_id: number | null
           created_at: string
-          id: string
+          employee_id: number
           started_at: string | null
           status: string
           updated_at: string
-          user_id: string
         }
         Insert: {
           completed_at?: string | null
-          course_id: string
+          course_id?: number | null
           created_at?: string
-          id?: string
+          employee_id: number
           started_at?: string | null
           status?: string
           updated_at?: string
-          user_id: string
         }
         Update: {
           completed_at?: string | null
-          course_id?: string
+          course_id?: number | null
           created_at?: string
-          id?: string
+          employee_id?: number
           started_at?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_user_progress_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "user_progress_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
-            referencedColumns: ["id"]
+            referencedColumns: ["course_id"]
           },
         ]
       }
