@@ -64,7 +64,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
-          id?: number
+          id?: never
           image_url: string
           manager_id?: number | null
           name: string
@@ -72,7 +72,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
-          id?: number
+          id?: never
           image_url?: string
           manager_id?: number | null
           name?: string
@@ -166,7 +166,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          employee_id: number
+          employee_id?: never
           first_name?: string | null
           last_name?: string | null
           role?: string | null
@@ -174,7 +174,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          employee_id?: number
+          employee_id?: never
           first_name?: string | null
           last_name?: string | null
           role?: string | null
