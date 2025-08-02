@@ -158,27 +158,33 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
-          employee_id: number
+          employee_id: string
           first_name: string | null
+          id: string
           last_name: string | null
           role: string | null
           updated_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
-          employee_id?: never
+          employee_id?: string
           first_name?: string | null
+          id?: string
           last_name?: string | null
           role?: string | null
           updated_at?: string
+          user_id: string
         }
         Update: {
           created_at?: string
-          employee_id?: never
+          employee_id?: string
           first_name?: string | null
+          id?: string
           last_name?: string | null
           role?: string | null
           updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -240,13 +246,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "fk_user_progress_employee"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["employee_id"]
-          },
           {
             foreignKeyName: "user_progress_course_id_fkey"
             columns: ["course_id"]
