@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import CourseProgress from "@/components/CourseProgress";
 import DayCard from "@/components/DayCard";
@@ -20,7 +21,7 @@ const COURSE_DATA = [
     title: "Customer Service Hub", 
     description: "Master customer interaction protocols and complaint resolution procedures",
     locations: 4,
-    status: 'locked' as const
+    status: 'available' as const
   },
   {
     day: 3,
@@ -47,6 +48,7 @@ const COURSE_DATA = [
 
 const Index = () => {
   const [currentDay] = useState(1);
+  const navigate = useNavigate();
 
   return (
     <Layout>
@@ -61,8 +63,8 @@ const Index = () => {
             <Button variant="ghost" size="icon">
               <Bell className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="icon">
-              <Settings className="w-5 h-5" />
+            <Button variant="ghost" size="icon" onClick={() => navigate('/profile')}>
+              <User className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -103,7 +105,7 @@ const Index = () => {
                   Today you'll explore the electronics department and learn about power systems, 
                   customer engagement protocols, and warranty procedures.
                 </p>
-                <Button variant="hero" size="sm">
+                <Button variant="hero" size="sm" onClick={() => navigate('/day/1')}>
                   Start Day 1
                 </Button>
               </div>
@@ -125,8 +127,7 @@ const Index = () => {
                 locations={course.locations}
                 onClick={() => {
                   if (course.status === 'available') {
-                    // Navigate to day view
-                    console.log(`Starting Day ${course.day}`);
+                    navigate(`/day/${course.day}`);
                   }
                 }}
               />

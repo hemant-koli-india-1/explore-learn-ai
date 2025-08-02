@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LocationCard from "@/components/LocationCard";
 import AIAssistant from "@/components/AIAssistant";
@@ -63,10 +64,18 @@ const SAMPLE_QUIZ_QUESTIONS = [
 ];
 
 const DayView = () => {
+  const { dayId } = useParams();
+  const navigate = useNavigate();
   const [currentPhase, setCurrentPhase] = useState<'locations' | 'quiz' | 'completed'>('locations');
   const [completedLocations, setCompletedLocations] = useState<string[]>([]);
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(true);
   const [quizScore, setQuizScore] = useState<number | null>(null);
+
+  const dayNumber = parseInt(dayId || '1');
+  const dayData = {
+    1: { title: "Electronics Department", description: "Learn about power supply systems" },
+    2: { title: "Customer Service Hub", description: "Master customer interaction protocols" }
+  }[dayNumber] || { title: "Day " + dayNumber, description: "Course content" };
 
   const totalLocations = SAMPLE_LOCATIONS.length;
   const progress = (completedLocations.length / totalLocations) * 100;
@@ -90,11 +99,11 @@ const DayView = () => {
       <div className="py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-foreground">Day 1: Electronics Department</h1>
+            <h1 className="text-xl font-bold text-foreground">Day {dayNumber}: {dayData.title}</h1>
             <p className="text-sm text-muted-foreground">3 locations to explore</p>
           </div>
           <div className="text-right">
@@ -167,11 +176,9 @@ const DayView = () => {
                       console.log('Navigate to:', location.title);
                     }}
                     onEnter={() => {
-                      // Simulate location entry and learning completion
-                      if (!isCompleted) {
-                        handleLocationComplete(location.id);
+                      if (isUnlocked) {
+                        navigate(`/location/${location.id}?day=${dayNumber}`);
                       }
-                      setIsAssistantMinimized(false);
                     }}
                   />
                 );
@@ -225,7 +232,7 @@ const DayView = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="lg" className="w-full">
+            <Button variant="hero" size="lg" className="w-full" onClick={() => navigate('/day/2')}>
               Continue to Day 2
             </Button>
           </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import AIAssistant from "@/components/AIAssistant";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,11 @@ const SAMPLE_CONTENT = [
 ];
 
 const LocationDetail = () => {
+  const { locationId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const dayNumber = searchParams.get('day') || '1';
+  
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(false);
@@ -100,7 +106,7 @@ const LocationDetail = () => {
       <div className="py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/day/${dayNumber}`)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
@@ -213,7 +219,7 @@ const LocationDetail = () => {
               </Button>
             )}
             {isLastStep && allStepsCompleted && (
-              <Button variant="hero">
+              <Button variant="hero" onClick={() => navigate(`/day/${dayNumber}`)}>
                 Exit Location
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
