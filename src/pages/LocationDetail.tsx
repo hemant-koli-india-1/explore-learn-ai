@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import AIAssistant from "@/components/AIAssistant";
@@ -6,81 +6,106 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ArrowRight, User, MapPin, Book, CheckCircle2 } from "lucide-react";
 
-const SAMPLE_CONTENT = [
-  {
-    id: "1",
-    title: "Meet Your Manager",
-    type: "manager-intro",
-    content: {
-      managerName: "Mr. Raj Kumar",
-      position: "Electronics Department Manager",
-      experience: "15 years in electronics and power systems",
-      message: "Welcome to the Electronics Department! I'm excited to guide you through our power supply systems and safety protocols today.",
-      image: "/api/placeholder/300/300"
-    }
-  },
-  {
-    id: "2", 
-    title: "Power Supply Fundamentals",
-    type: "knowledge",
-    content: {
-      text: "Power supply systems are the backbone of our electronics department. Understanding voltage, current, and power distribution is crucial for safe and efficient operations.",
-      keyPoints: [
-        "Always check voltage levels before connecting equipment",
-        "Use proper grounding techniques to prevent electrical hazards",
-        "Monitor power consumption to avoid circuit overloads",
-        "Maintain clean and organized power distribution panels"
-      ],
-      image: "/api/placeholder/400/250"
-    }
-  },
-  {
-    id: "3",
-    title: "Safety Protocols",
-    type: "knowledge", 
-    content: {
-      text: "Safety is our top priority. These protocols must be followed at all times when working with electrical systems.",
-      keyPoints: [
-        "Lockout/Tagout (LOTO) procedures for equipment maintenance",
-        "Personal Protective Equipment (PPE) requirements",
-        "Emergency shutdown procedures",
-        "Incident reporting protocols"
-      ],
-      image: "/api/placeholder/400/250"
-    }
-  },
-  {
-    id: "4",
-    title: "Customer Service Excellence", 
-    type: "knowledge",
-    content: {
-      text: "Providing exceptional customer service while maintaining technical accuracy is essential in our department.",
-      keyPoints: [
-        "Listen actively to customer concerns and requirements",
-        "Explain technical concepts in simple terms",
-        "Always verify compatibility before recommendations",
-        "Follow up to ensure customer satisfaction"
-      ],
-      image: "/api/placeholder/400/250"
-    }
-  }
-];
+interface LocationContent {
+  id: string;
+  title: string;
+  type: 'manager-intro' | 'knowledge';
+  content: any;
+}
 
 const LocationDetail = () => {
   const { locationId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { toast } = useToast();
   const dayNumber = searchParams.get('day') || '1';
   
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(false);
+  const [locationData, setLocationData] = useState<any>(null);
+  const [contentSteps, setContentSteps] = useState<LocationContent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const progress = ((currentStep + 1) / SAMPLE_CONTENT.length) * 100;
-  const currentContent = SAMPLE_CONTENT[currentStep];
-  const isLastStep = currentStep === SAMPLE_CONTENT.length - 1;
+  useEffect(() => {
+    fetchLocationData();
+  }, [locationId]);
+
+  const fetchLocationData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('*')
+        .eq('location_id', parseInt(locationId || '1'))
+        .single();
+
+      if (error) throw error;
+
+      setLocationData(data);
+
+      // For now, create sample content structure
+      // In a full implementation, this would come from a separate content table
+      const sampleContent: LocationContent[] = [
+        {
+          id: "1",
+          title: "Meet Your Manager",
+          type: "manager-intro",
+          content: {
+            managerName: "Mr. Raj Kumar",
+            position: `${data.name} Manager`,
+            experience: "15 years in electronics and power systems",
+            message: `Welcome to ${data.name}! I'm excited to guide you through our operations and safety protocols today.`,
+          }
+        },
+        {
+          id: "2", 
+          title: data.name,
+          type: "knowledge",
+          content: {
+            text: data.description || "Learn about the key concepts and procedures for this location.",
+            keyPoints: [
+              "Always follow safety protocols when working in this area",
+              "Use proper equipment and protective gear as required",
+              "Report any incidents or concerns immediately",
+              "Maintain clean and organized work areas"
+            ],
+          }
+        },
+        {
+          id: "3",
+          title: "Safety Protocols",
+          type: "knowledge", 
+          content: {
+            text: "Safety is our top priority. These protocols must be followed at all times.",
+            keyPoints: [
+              "Lockout/Tagout (LOTO) procedures for equipment maintenance",
+              "Personal Protective Equipment (PPE) requirements",
+              "Emergency shutdown procedures",
+              "Incident reporting protocols"
+            ],
+          }
+        }
+      ];
+
+      setContentSteps(sampleContent);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load location data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const progress = contentSteps.length > 0 ? ((currentStep + 1) / contentSteps.length) * 100 : 0;
+  const currentContent = contentSteps[currentStep];
+  const isLastStep = currentStep === contentSteps.length - 1;
 
   const handleNext = () => {
     if (!completedSteps.includes(currentContent.id)) {
@@ -98,8 +123,32 @@ const LocationDetail = () => {
     }
   };
 
-  const isStepCompleted = completedSteps.includes(currentContent.id);
-  const allStepsCompleted = completedSteps.length === SAMPLE_CONTENT.length;
+  const isStepCompleted = completedSteps.includes(currentContent?.id || '');
+  const allStepsCompleted = completedSteps.length === contentSteps.length;
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="py-6 text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading location...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!currentContent) {
+    return (
+      <Layout>
+        <div className="py-6 text-center">
+          <p className="text-muted-foreground">No content available for this location.</p>
+          <Button variant="outline" onClick={() => navigate(`/day/${dayNumber}`)}>
+            Back to Day View
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -110,10 +159,10 @@ const LocationDetail = () => {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-foreground">Power Supply Systems</h1>
+            <h1 className="text-xl font-bold text-foreground">{locationData?.name || 'Location'}</h1>
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <MapPin className="w-4 h-4" />
-              <span>Electronics Department • Building A, Floor 2</span>
+              <span>{locationData?.location || 'Unknown Location'}</span>
             </div>
           </div>
           <Badge variant="secondary" className={allStepsCompleted ? "bg-success/10 text-success border-success/20" : ""}>
@@ -134,7 +183,7 @@ const LocationDetail = () => {
         {/* Progress */}
         <div>
           <div className="flex justify-between text-sm text-muted-foreground mb-2">
-            <span>Step {currentStep + 1} of {SAMPLE_CONTENT.length}</span>
+            <span>Step {currentStep + 1} of {contentSteps.length}</span>
             <span>{Math.round(progress)}% Complete</span>
           </div>
           <Progress value={progress} />
@@ -229,7 +278,7 @@ const LocationDetail = () => {
 
         {/* AI Assistant */}
         <AIAssistant
-          department="Electronics Department - Power Supply Systems"
+          department={`${locationData?.name || 'Location'} - ${locationData?.location || 'Training'}`}
           isMinimized={isAssistantMinimized}
           onToggleMinimize={() => setIsAssistantMinimized(!isAssistantMinimized)}
         />

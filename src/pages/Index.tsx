@@ -66,6 +66,9 @@ const Index = () => {
             <Button variant="ghost" size="icon" onClick={() => navigate('/profile')}>
               <User className="w-5 h-5" />
             </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/auth')}>
+              Admin
+            </Button>
           </div>
         </div>
 

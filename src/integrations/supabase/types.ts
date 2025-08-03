@@ -94,8 +94,10 @@ export type Database = {
           created_at: string
           description: string | null
           int_id: number
+          latitude: number | null
           location: string
           location_id: number
+          longitude: number | null
           name: string
           order_index: number
           updated_at: string
@@ -106,8 +108,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           int_id?: number
+          latitude?: number | null
           location: string
           location_id?: number
+          longitude?: number | null
           name: string
           order_index: number
           updated_at?: string
@@ -118,8 +122,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           int_id?: number
+          latitude?: number | null
           location?: string
           location_id?: number
+          longitude?: number | null
           name?: string
           order_index?: number
           updated_at?: string

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import LocationCard from "@/components/LocationCard";
@@ -6,37 +6,19 @@ import AIAssistant from "@/components/AIAssistant";
 import QuizComponent from "@/components/QuizComponent";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, MapPin, Clock, CheckCircle2 } from "lucide-react";
 
-const SAMPLE_LOCATIONS = [
-  {
-    id: "1",
-    title: "Power Supply Systems",
-    description: "Learn about electrical systems, power distribution, and safety protocols",
-    managerName: "Mr. Raj Kumar",
-    isUnlocked: true,
-    isCompleted: false,
-    isCurrentLocation: true
-  },
-  {
-    id: "2", 
-    title: "Customer Engagement Desk",
-    description: "Master customer service protocols and communication standards",
-    managerName: "Ms. Sarah Wilson",
-    isUnlocked: false,
-    isCompleted: false,
-    isCurrentLocation: false
-  },
-  {
-    id: "3",
-    title: "Returns & Warranty Center",
-    description: "Understand return policies, warranty procedures, and documentation",
-    managerName: "Mr. David Chen",
-    isUnlocked: false,
-    isCompleted: false,
-    isCurrentLocation: false
-  }
-];
+interface LocationData {
+  id: string;
+  name: string;
+  description: string;
+  location: string;
+  latitude: number | null;
+  longitude: number | null;
+  manager_name?: string;
+}
 
 const SAMPLE_QUIZ_QUESTIONS = [
   {
@@ -66,10 +48,13 @@ const SAMPLE_QUIZ_QUESTIONS = [
 const DayView = () => {
   const { dayId } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentPhase, setCurrentPhase] = useState<'locations' | 'quiz' | 'completed'>('locations');
   const [completedLocations, setCompletedLocations] = useState<string[]>([]);
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(true);
   const [quizScore, setQuizScore] = useState<number | null>(null);
+  const [locations, setLocations] = useState<LocationData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const dayNumber = parseInt(dayId || '1');
   const dayData = {
@@ -77,7 +62,76 @@ const DayView = () => {
     2: { title: "Customer Service Hub", description: "Master customer interaction protocols" }
   }[dayNumber] || { title: "Day " + dayNumber, description: "Course content" };
 
-  const totalLocations = SAMPLE_LOCATIONS.length;
+  useEffect(() => {
+    fetchLocations();
+  }, [dayNumber]);
+
+  const fetchLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select(`
+          location_id,
+          name,
+          description,
+          location,
+          latitude,
+          longitude,
+          order_index
+        `)
+        .eq('course_id', dayNumber)
+        .order('order_index');
+
+      if (error) throw error;
+
+      const formattedLocations: LocationData[] = (data || []).map(loc => ({
+        id: loc.location_id.toString(),
+        name: loc.name,
+        description: loc.description || '',
+        location: loc.location,
+        latitude: loc.latitude ? parseFloat(loc.latitude.toString()) : null,
+        longitude: loc.longitude ? parseFloat(loc.longitude.toString()) : null,
+        manager_name: "Manager" // We'll fetch this from managers table later
+      }));
+
+      setLocations(formattedLocations);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load locations",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleMapsNavigation = (latitude: number | null, longitude: number | null, locationName: string) => {
+    if (!latitude || !longitude) {
+      toast({
+        title: "Navigation Unavailable",
+        description: "Location coordinates not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`;
+    
+    // Open in new tab for desktop, direct navigation for mobile
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      window.location.href = googleMapsUrl;
+    } else {
+      window.open(googleMapsUrl, '_blank');
+    }
+
+    toast({
+      title: "Navigation Started",
+      description: `Opening directions to ${locationName}`,
+    });
+  };
+
+  const totalLocations = locations.length;
   const progress = (completedLocations.length / totalLocations) * 100;
 
   const handleLocationComplete = (locationId: string) => {
@@ -161,28 +215,40 @@ const DayView = () => {
             {/* Locations */}
             <div className="space-y-4">
               <h3 className="font-semibold text-foreground">Locations to Visit</h3>
-              {SAMPLE_LOCATIONS.map((location, index) => {
-                const isUnlocked = index === 0 || completedLocations.includes(SAMPLE_LOCATIONS[index - 1]?.id);
-                const isCompleted = completedLocations.includes(location.id);
-                
-                return (
-                  <LocationCard
-                    key={location.id}
-                    {...location}
-                    isUnlocked={isUnlocked}
-                    isCompleted={isCompleted}
-                    onNavigate={() => {
-                      // Implement Google Maps navigation
-                      console.log('Navigate to:', location.title);
-                    }}
-                    onEnter={() => {
-                      if (isUnlocked) {
-                        navigate(`/location/${location.id}?day=${dayNumber}`);
-                      }
-                    }}
-                  />
-                );
-              })}
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin w-6 h-6 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+                  <p className="mt-2 text-muted-foreground">Loading locations...</p>
+                </div>
+              ) : (
+                locations.map((location, index) => {
+                  const isUnlocked = index === 0 || completedLocations.includes(locations[index - 1]?.id);
+                  const isCompleted = completedLocations.includes(location.id);
+                  
+                  return (
+                    <LocationCard
+                      key={location.id}
+                      id={location.id}
+                      title={location.name}
+                      description={location.description}
+                      managerName={location.manager_name || "Manager"}
+                      isUnlocked={isUnlocked}
+                      isCompleted={isCompleted}
+                      isCurrentLocation={false}
+                      onNavigate={() => handleGoogleMapsNavigation(
+                        location.latitude, 
+                        location.longitude, 
+                        location.name
+                      )}
+                      onEnter={() => {
+                        if (isUnlocked) {
+                          navigate(`/location/${location.id}?day=${dayNumber}`);
+                        }
+                      }}
+                    />
+                  );
+                })
+              )}
             </div>
           </div>
         )}
