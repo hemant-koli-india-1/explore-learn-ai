@@ -126,6 +126,35 @@ const LocationDetail = () => {
   const isStepCompleted = completedSteps.includes(currentContent?.id || '');
   const allStepsCompleted = completedSteps.length === contentSteps.length;
 
+  const handleCompleteLocation = async () => {
+    try {
+      // Record location visit
+      const { error } = await supabase
+        .from('user_location_visits')
+        .insert([{
+          location_id: parseInt(locationId || '1'),
+          employee_id: 1, // This would be dynamic in a real app
+          quiz_score: 100 // Default score for completing all steps
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Location completed successfully!",
+      });
+
+      // Navigate to next location or back to day view
+      navigate(`/location/${parseInt(locationId || '1') + 1}?day=${dayNumber}`);
+    } catch (error: any) {
+      toast({
+        title: "Error", 
+        description: "Failed to complete location",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -268,10 +297,20 @@ const LocationDetail = () => {
               </Button>
             )}
             {isLastStep && allStepsCompleted && (
-              <Button variant="hero" onClick={() => navigate(`/day/${dayNumber}`)}>
-                Exit Location
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              <>
+                <Button 
+                  variant="success" 
+                  onClick={handleCompleteLocation}
+                  className="mr-2"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Complete Location
+                </Button>
+                <Button variant="outline" onClick={() => navigate(`/day/${dayNumber}`)}>
+                  Exit Location
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </>
             )}
           </div>
         </div>

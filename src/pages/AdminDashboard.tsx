@@ -41,10 +41,10 @@ const AdminDashboard = () => {
 
     const { data, error } = await supabase
       .from('user_roles')
-      .select('role')
+      .select('*')
       .eq('user_id', user.id)
       .eq('role', 'admin')
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       navigate('/admin/auth');
@@ -67,13 +67,13 @@ const AdminDashboard = () => {
         const { data: progressData } = await supabase
           .from('user_progress')
           .select('course_id, status, started_at, completed_at, approval_status, approved_by, approved_at')
-          .eq('employee_id', parseInt(profile.employee_id));
+          .eq('employee_id', profile.employee_id);
 
         formattedUsers.push({
           profile_id: profile.id,
           first_name: profile.first_name || 'Unknown',
           last_name: profile.last_name || 'User',
-          employee_id: profile.employee_id,
+          employee_id: profile.employee_id.toString(),
           role: profile.role || 'trainee',
           joined_at: profile.created_at,
           progress: progressData || []

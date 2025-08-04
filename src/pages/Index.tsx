@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import CourseProgress from "@/components/CourseProgress";
 import DayCard from "@/components/DayCard";
+import Chatbot from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,8 @@ const COURSE_DATA = [
 
 const Index = () => {
   const [currentDay] = useState(1);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isChatbotMinimized, setIsChatbotMinimized] = useState(true);
   const navigate = useNavigate();
 
   return (
@@ -153,6 +156,30 @@ const Index = () => {
             <div className="text-xs text-muted-foreground">Overall Progress</div>
           </Card>
         </div>
+
+        {/* Chatbot */}
+        {isChatbotOpen && (
+          <Chatbot
+            isMinimized={isChatbotMinimized}
+            onToggleMinimize={() => setIsChatbotMinimized(!isChatbotMinimized)}
+            onClose={() => setIsChatbotOpen(false)}
+          />
+        )}
+
+        {/* Chatbot Toggle */}
+        {!isChatbotOpen && (
+          <div className="fixed bottom-4 right-4 z-50">
+            <Button
+              onClick={() => {
+                setIsChatbotOpen(true);
+                setIsChatbotMinimized(false);
+              }}
+              className="w-16 h-16 rounded-full bg-primary hover:bg-primary/90 text-white shadow-lg"
+            >
+              💬
+            </Button>
+          </div>
+        )}
       </div>
     </Layout>
   );
