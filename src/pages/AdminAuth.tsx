@@ -7,38 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, ArrowLeft, UserPlus } from "lucide-react";
+import { Shield, ArrowLeft } from "lucide-react";
 
 const AdminAuth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [creatingAdmin, setCreatingAdmin] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-
-  const createAdminUser = async () => {
-    setCreatingAdmin(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('create-admin');
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: "Admin user created successfully! You can now login with admin@company.com / admin123",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create admin user",
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingAdmin(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,21 +88,6 @@ const AdminAuth = () => {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-          
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-sm text-muted-foreground mb-3 text-center">
-              Need to create the admin user first?
-            </p>
-            <Button 
-              variant="outline" 
-              className="w-full" 
-              onClick={createAdminUser}
-              disabled={creatingAdmin}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              {creatingAdmin ? "Creating Admin..." : "Create Admin User"}
-            </Button>
-          </div>
         </Card>
       </div>
     </div>
