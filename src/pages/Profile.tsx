@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,18 +14,69 @@ const Profile = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    employeeId: "EMP001",
-    role: "Trainee",
-    department: "Electronics",
-    joinDate: "2024-01-15"
-  });
+  const [profileData, setProfileData] = useState<any>(null);
+  const [userProgress, setUserProgress] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    // Save profile changes here
-    setIsEditing(false);
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Fetch user progress
+      const { data: progress, error: progressError } = await supabase
+        .from('user_progress')
+        .select(`
+          *,
+          courses (
+            title,
+            description
+          )
+        `)
+        .eq('employee_id', profile?.employee_id);
+
+      if (progressError && progressError.code !== 'PGRST116') {
+        throw progressError;
+      }
+
+      setProfileData(profile);
+      setUserProgress(progress || []);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!profileData || !user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
   };
 
   const handleSignOut = async () => {
@@ -57,7 +109,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-foreground">
-                {profileData.firstName} {profileData.lastName}
+                {loading ? "Loading..." : profileData ? `${profileData.first_name} ${profileData.last_name}` : "User"}
               </h2>
               <div className="flex items-center space-x-2 mt-1">
                 <Mail className="w-4 h-4 text-muted-foreground" />
@@ -66,9 +118,11 @@ const Profile = () => {
               <div className="flex items-center space-x-2 mt-2">
                 <Badge variant="secondary">
                   <Award className="w-3 h-3 mr-1" />
-                  {profileData.role}
+                  {loading ? "..." : profileData?.role || "Trainee"}
                 </Badge>
-                <Badge variant="outline">{profileData.department}</Badge>
+                <Badge variant="outline">
+                  Employee ID: {loading ? "..." : profileData?.employee_id || "N/A"}
+                </Badge>
               </div>
             </div>
           </div>
@@ -82,25 +136,25 @@ const Profile = () => {
               <Label htmlFor="firstName">First Name</Label>
               <Input
                 id="firstName"
-                value={profileData.firstName}
-                onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
-                disabled={!isEditing}
+                value={profileData?.first_name || ""}
+                onChange={(e) => setProfileData({...profileData, first_name: e.target.value})}
+                disabled={!isEditing || loading}
               />
             </div>
             <div>
               <Label htmlFor="lastName">Last Name</Label>
               <Input
                 id="lastName"
-                value={profileData.lastName}
-                onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
-                disabled={!isEditing}
+                value={profileData?.last_name || ""}
+                onChange={(e) => setProfileData({...profileData, last_name: e.target.value})}
+                disabled={!isEditing || loading}
               />
             </div>
             <div>
               <Label htmlFor="employeeId">Employee ID</Label>
               <Input
                 id="employeeId"
-                value={profileData.employeeId}
+                value={profileData?.employee_id || ""}
                 disabled
               />
             </div>
@@ -108,7 +162,7 @@ const Profile = () => {
               <Label htmlFor="joinDate">Join Date</Label>
               <Input
                 id="joinDate"
-                value={profileData.joinDate}
+                value={profileData?.created_at ? new Date(profileData.created_at).toLocaleDateString() : ""}
                 disabled
               />
             </div>
@@ -130,15 +184,21 @@ const Profile = () => {
           <h3 className="font-semibold text-foreground mb-4">Training Progress</h3>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">1/5</div>
+              <div className="text-2xl font-bold text-primary">
+                {loading ? "..." : `${userProgress?.filter(p => p.status === 'completed').length || 0}/5`}
+              </div>
               <div className="text-sm text-muted-foreground">Days Completed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-accent">3/19</div>
-              <div className="text-sm text-muted-foreground">Locations Visited</div>
+              <div className="text-2xl font-bold text-accent">
+                {loading ? "..." : `${userProgress?.length || 0}`}
+              </div>
+              <div className="text-sm text-muted-foreground">Course Progress Records</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-success">20%</div>
+              <div className="text-2xl font-bold text-success">
+                {loading ? "..." : `${Math.round(((userProgress?.filter(p => p.status === 'completed').length || 0) / 5) * 100)}%`}
+              </div>
               <div className="text-sm text-muted-foreground">Overall Progress</div>
             </div>
           </div>

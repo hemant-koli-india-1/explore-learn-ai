@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { createClient } from '@supabase/supabase-js';
 import Layout from "@/components/Layout";
 import CourseProgress from "@/components/CourseProgress";
 import DayCard from "@/components/DayCard";
@@ -7,51 +9,118 @@ import Chatbot from "@/components/Chatbot";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Bell, Settings, Award, MapPin } from "lucide-react";
+import { User, Bell, Award, MapPin } from "lucide-react";
 
-const COURSE_DATA = [
-  {
-    day: 1,
-    title: "Electronics Department",
-    description: "Learn about power supply systems, customer engagement, and warranty processes",
-    locations: 3,
-    status: 'available' as const
-  },
-  {
-    day: 2,
-    title: "Customer Service Hub", 
-    description: "Master customer interaction protocols and complaint resolution procedures",
-    locations: 4,
-    status: 'available' as const
-  },
-  {
-    day: 3,
-    title: "Inventory Management",
-    description: "Understand stock control, ordering systems, and warehouse operations",
-    locations: 5,
-    status: 'locked' as const
-  },
-  {
-    day: 4,
-    title: "Sales & Marketing",
-    description: "Explore sales strategies, marketing campaigns, and customer analytics",
-    locations: 4,
-    status: 'locked' as const
-  },
-  {
-    day: 5,
-    title: "Quality Assurance",
-    description: "Learn quality standards, testing procedures, and compliance requirements",
-    locations: 3,
-    status: 'locked' as const
-  }
-];
+interface Course {
+  course_id: number;
+  title: string;
+  description: string;
+  total_locations: number;
+}
+
+interface UserProfile {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  employee_id: number;
+  role: string;
+}
+
+interface UserProgress {
+  course_id: number;
+  status: string;
+}
+
+const supabase = createClient(
+  "https://yfyuwmpvhokdiyqcjgyg.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmeXV3bXB2aG9rZGl5cWNqZ3lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MzQzOTksImV4cCI6MjA2OTUxMDM5OX0.QPTGnNr3bswCO-kT_fFQPZkQcO4OvP-llsZ5apztAI8"
+);
 
 const Index = () => {
-  const [currentDay] = useState(1);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [currentDay, setCurrentDay] = useState(1);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [isChatbotMinimized, setIsChatbotMinimized] = useState(true);
-  const navigate = useNavigate();
+  const [courseData, setCourseData] = useState<Course[]>([]);
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchDynamicData();
+      checkAdminStatus();
+    }
+  }, [user]);
+
+  const fetchDynamicData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Fetch courses from database
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('course_id');
+
+      if (coursesError) throw coursesError;
+
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Fetch user progress
+      const { data: progress, error: progressError } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('employee_id', profile?.employee_id);
+
+      if (progressError && progressError.code !== 'PGRST116') {
+        throw progressError;
+      }
+
+      setCourseData(courses || []);
+      setProfileData(profile);
+      setUserProgress(progress || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkAdminStatus = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+      
+      if (roles && Array.isArray(roles)) {
+        const hasAdminRole = roles.some((role: any) => role.role === 'admin');
+        setIsAdmin(Boolean(hasAdminRole));
+      } else {
+        setIsAdmin(false);
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  };
+
+  const completedCourses = userProgress.filter(p => p.status === 'completed').length;
+  const totalCourses = courseData.length;
+  const totalLocations = courseData.reduce((acc, course) => acc + course.total_locations, 0);
+  const overallProgress = totalCourses > 0 ? Math.round((completedCourses / totalCourses) * 100) : 0;
 
   return (
     <Layout>
@@ -69,9 +138,11 @@ const Index = () => {
             <Button variant="ghost" size="icon" onClick={() => navigate('/profile')}>
               <User className="w-5 h-5" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/admin/auth')}>
-              Admin
-            </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => navigate('/admin/dashboard')}>
+                Admin Dashboard
+              </Button>
+            )}
           </div>
         </div>
 
@@ -83,13 +154,17 @@ const Index = () => {
                 <User className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="font-semibold">John Doe</h2>
-                <p className="text-white/80 text-sm">Employee ID: EMP001</p>
+                <h2 className="font-semibold">
+                  {profileData ? `${profileData.first_name} ${profileData.last_name}` : 'User'}
+                </h2>
+                <p className="text-white/80 text-sm">
+                  Employee ID: {profileData?.employee_id || 'N/A'}
+                </p>
               </div>
             </div>
             <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
               <Award className="w-3 h-3 mr-1" />
-              Trainee
+              {profileData?.role || 'Trainee'}
             </Badge>
           </div>
         </Card>
@@ -100,59 +175,88 @@ const Index = () => {
         {/* Today's Focus */}
         <div>
           <h3 className="font-semibold text-foreground mb-4">Today's Focus</h3>
-          <Card className="p-6 bg-primary/5 border-primary/20">
-            <div className="flex items-start space-x-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <MapPin className="w-6 h-6 text-primary" />
+          {loading ? (
+            <Card className="p-6 bg-primary/5 border-primary/20">
+              <div className="animate-pulse">Loading today's focus...</div>
+            </Card>
+          ) : courseData.length > 0 ? (
+            <Card className="p-6 bg-primary/5 border-primary/20">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-primary/10 rounded-lg">
+                  <MapPin className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-foreground mb-2">{courseData[currentDay - 1]?.title}</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {courseData[currentDay - 1]?.description}
+                  </p>
+                  <Button variant="hero" size="sm" onClick={() => navigate(`/day/${currentDay}`)}>
+                    Start Day {currentDay}
+                  </Button>
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="font-medium text-foreground mb-2">Electronics Department</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Today you'll explore the electronics department and learn about power systems, 
-                  customer engagement protocols, and warranty procedures.
-                </p>
-                <Button variant="hero" size="sm" onClick={() => navigate('/day/1')}>
-                  Start Day 1
-                </Button>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          ) : (
+            <Card className="p-6 bg-primary/5 border-primary/20">
+              <p className="text-muted-foreground">No courses available at the moment.</p>
+            </Card>
+          )}
         </div>
 
         {/* Course Overview */}
         <div>
-          <h3 className="font-semibold text-foreground mb-4">5-Day Course Overview</h3>
-          <div className="grid gap-4">
-            {COURSE_DATA.map((course) => (
-              <DayCard
-                key={course.day}
-                day={course.day}
-                title={course.title}
-                description={course.description}
-                status={course.status}
-                locations={course.locations}
-                onClick={() => {
-                  if (course.status === 'available') {
-                    navigate(`/day/${course.day}`);
-                  }
-                }}
-              />
-            ))}
-          </div>
+          <h3 className="font-semibold text-foreground mb-4">Course Overview</h3>
+          {loading ? (
+            <div className="grid gap-4">
+              {[1,2,3,4,5].map((i) => (
+                <div key={i} className="animate-pulse bg-muted rounded-lg h-24"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {courseData.map((course, index) => {
+                const dayNumber = index + 1;
+                const isCompleted = userProgress.some(p => p.course_id === course.course_id && p.status === 'completed');
+                const isAvailable = dayNumber === 1 || userProgress.some(p => p.course_id === course.course_id - 1 && p.status === 'completed');
+                
+                return (
+                  <DayCard
+                    key={course.course_id}
+                    day={dayNumber}
+                    title={course.title}
+                    description={course.description}
+                    status={isCompleted ? 'completed' : isAvailable ? 'available' : 'locked'}
+                    locations={course.total_locations}
+                    onClick={() => {
+                      if (isAvailable || isCompleted) {
+                        navigate(`/day/${dayNumber}`);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-4">
           <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-primary">0/5</div>
+            <div className="text-2xl font-bold text-primary">
+              {loading ? "..." : `${completedCourses}/${totalCourses}`}
+            </div>
             <div className="text-xs text-muted-foreground">Days Completed</div>
           </Card>
           <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-accent">0/19</div>
+            <div className="text-2xl font-bold text-accent">
+              {loading ? "..." : `${userProgress.length}/${totalLocations}`}
+            </div>
             <div className="text-xs text-muted-foreground">Locations Visited</div>
           </Card>
           <Card className="p-4 text-center">
-            <div className="text-2xl font-bold text-success">0%</div>
+            <div className="text-2xl font-bold text-success">
+              {loading ? "..." : `${overallProgress}%`}
+            </div>
             <div className="text-xs text-muted-foreground">Overall Progress</div>
           </Card>
         </div>

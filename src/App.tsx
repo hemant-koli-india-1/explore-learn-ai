@@ -10,6 +10,7 @@ import DayView from "./pages/DayView";
 import LocationDetail from "./pages/LocationDetail";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import UnifiedAuth from "./pages/UnifiedAuth";
 import AdminAuth from "./pages/AdminAuth";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -24,9 +25,13 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={<UnifiedAuth />} />
             <Route path="/admin/auth" element={<AdminAuth />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
             <Route 
               path="/" 
               element={
