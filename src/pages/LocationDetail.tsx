@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ArrowRight, User, MapPin, Book, CheckCircle2 } from "lucide-react";
 
@@ -22,6 +23,7 @@ const LocationDetail = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { user } = useAuth();
   const dayNumber = searchParams.get('day') || '1';
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -29,45 +31,94 @@ const LocationDetail = () => {
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(false);
   const [locationData, setLocationData] = useState<any>(null);
   const [contentSteps, setContentSteps] = useState<LocationContent[]>([]);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [managerData, setManagerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchLocationData();
-  }, [locationId]);
+    if (user) {
+      fetchLocationData();
+    }
+  }, [locationId, user]);
 
   const fetchLocationData = async () => {
+    if (!user?.id) return;
+    
     try {
-      const { data, error } = await supabase
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('employee_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+      setUserProfile(profile);
+
+      // Fetch location data
+      const { data: location, error: locationError } = await supabase
         .from('locations')
         .select('*')
         .eq('location_id', parseInt(locationId || '1'))
         .single();
 
-      if (error) throw error;
+      if (locationError) throw locationError;
+      setLocationData(location);
 
-      setLocationData(data);
+      // Fetch course data to get department info
+      const { data: course, error: courseError } = await supabase
+        .from('courses')
+        .select('department_id')
+        .eq('course_id', location.course_id)
+        .single();
 
-      // For now, create sample content structure
-      // In a full implementation, this would come from a separate content table
-      const sampleContent: LocationContent[] = [
+      if (courseError) throw courseError;
+
+      // Fetch manager info for the department
+      const { data: department, error: deptError } = await supabase
+        .from('departments')
+        .select('manager_id')
+        .eq('id', course.department_id)
+        .single();
+
+      if (deptError) throw deptError;
+
+      // Fetch manager details
+      if (department.manager_id) {
+        const { data: manager, error: managerError } = await supabase
+          .from('managers')
+          .select('*')
+          .eq('employee_id', department.manager_id)
+          .single();
+
+        if (!managerError) {
+          setManagerData(manager);
+        }
+      }
+
+      // Parse location content safely
+      const locationContent = location.content && typeof location.content === 'object' ? location.content as any : {};
+      
+      // Create dynamic content based on fetched data
+      const dynamicContent: LocationContent[] = [
         {
           id: "1",
           title: "Meet Your Manager",
           type: "manager-intro",
           content: {
-            managerName: "Mr. Raj Kumar",
-            position: `${data.name} Manager`,
-            experience: "15 years in electronics and power systems",
-            message: `Welcome to ${data.name}! I'm excited to guide you through our operations and safety protocols today.`,
+            managerName: managerData?.name || "Department Manager",
+            position: `${location.name} Supervisor`,
+            experience: managerData?.description || "Experienced professional in this field",
+            message: `Welcome to ${location.name}! I'm here to guide you through our operations and ensure you understand all safety protocols.`,
           }
         },
         {
           id: "2", 
-          title: data.name,
+          title: location.name,
           type: "knowledge",
           content: {
-            text: data.description || "Learn about the key concepts and procedures for this location.",
-            keyPoints: [
+            text: location.description || "Learn about the key concepts and procedures for this location.",
+            keyPoints: locationContent.keyPoints || [
               "Always follow safety protocols when working in this area",
               "Use proper equipment and protective gear as required",
               "Report any incidents or concerns immediately",
@@ -77,11 +128,11 @@ const LocationDetail = () => {
         },
         {
           id: "3",
-          title: "Safety Protocols",
+          title: "Safety & Procedures",
           type: "knowledge", 
           content: {
-            text: "Safety is our top priority. These protocols must be followed at all times.",
-            keyPoints: [
+            text: locationContent.safetyInfo || "Safety is our top priority. These protocols must be followed at all times.",
+            keyPoints: locationContent.safetyPoints || [
               "Lockout/Tagout (LOTO) procedures for equipment maintenance",
               "Personal Protective Equipment (PPE) requirements",
               "Emergency shutdown procedures",
@@ -91,8 +142,9 @@ const LocationDetail = () => {
         }
       ];
 
-      setContentSteps(sampleContent);
+      setContentSteps(dynamicContent);
     } catch (error: any) {
+      console.error('Error fetching location data:', error);
       toast({
         title: "Error",
         description: "Failed to load location data",
@@ -127,26 +179,46 @@ const LocationDetail = () => {
   const allStepsCompleted = completedSteps.length === contentSteps.length;
 
   const handleCompleteLocation = async () => {
-    try {
-      // Record location visit
-      const { error } = await supabase
-        .from('user_location_visits')
-        .insert([{
-          location_id: parseInt(locationId || '1'),
-          employee_id: 1, // This would be dynamic in a real app
-          quiz_score: 100 // Default score for completing all steps
-        }]);
+    if (!userProfile?.employee_id) {
+      toast({
+        title: "Error",
+        description: "User profile not found",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      if (error) throw error;
+    try {
+      // Check if visit already exists
+      const { data: existingVisit } = await supabase
+        .from('user_location_visits')
+        .select('*')
+        .eq('location_id', parseInt(locationId || '1'))
+        .eq('employee_id', userProfile.employee_id)
+        .single();
+
+      if (!existingVisit) {
+        // Record location visit
+        const { error } = await supabase
+          .from('user_location_visits')
+          .insert([{
+            location_id: parseInt(locationId || '1'),
+            employee_id: userProfile.employee_id,
+            quiz_score: 100 // Default score for completing all steps
+          }]);
+
+        if (error) throw error;
+      }
 
       toast({
         title: "Success",
         description: "Location completed successfully!",
       });
 
-      // Navigate to next location or back to day view
-      navigate(`/location/${parseInt(locationId || '1') + 1}?day=${dayNumber}`);
+      // Navigate back to day view
+      navigate(`/day/${dayNumber}`);
     } catch (error: any) {
+      console.error('Error completing location:', error);
       toast({
         title: "Error", 
         description: "Failed to complete location",

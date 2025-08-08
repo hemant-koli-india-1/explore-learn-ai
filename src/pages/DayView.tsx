@@ -7,6 +7,7 @@ import QuizComponent from "@/components/QuizComponent";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, MapPin, Clock, CheckCircle2 } from "lucide-react";
 
@@ -18,6 +19,17 @@ interface LocationData {
   latitude: number | null;
   longitude: number | null;
   manager_name?: string;
+}
+
+interface CourseData {
+  course_id: number;
+  title: string;
+  description: string;
+  total_locations: number;
+}
+
+interface UserProfile {
+  employee_id: number;
 }
 
 const SAMPLE_QUIZ_QUESTIONS = [
@@ -49,26 +61,51 @@ const DayView = () => {
   const { dayId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [currentPhase, setCurrentPhase] = useState<'locations' | 'quiz' | 'completed'>('locations');
   const [completedLocations, setCompletedLocations] = useState<string[]>([]);
   const [isAssistantMinimized, setIsAssistantMinimized] = useState(true);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [locations, setLocations] = useState<LocationData[]>([]);
+  const [courseData, setCourseData] = useState<CourseData | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [visitedLocations, setVisitedLocations] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   const dayNumber = parseInt(dayId || '1');
-  const dayData = {
-    1: { title: "Electronics Department", description: "Learn about power supply systems" },
-    2: { title: "Customer Service Hub", description: "Master customer interaction protocols" }
-  }[dayNumber] || { title: "Day " + dayNumber, description: "Course content" };
 
   useEffect(() => {
-    fetchLocations();
-  }, [dayNumber]);
+    if (user) {
+      fetchDayData();
+    }
+  }, [dayNumber, user]);
 
-  const fetchLocations = async () => {
+  const fetchDayData = async () => {
+    if (!user?.id) return;
+    
     try {
-      const { data, error } = await supabase
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('employee_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+      setUserProfile(profile);
+
+      // Fetch course data
+      const { data: course, error: courseError } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('course_id', dayNumber)
+        .single();
+
+      if (courseError) throw courseError;
+      setCourseData(course);
+
+      // Fetch locations for this course
+      const { data: locationsData, error: locationsError } = await supabase
         .from('locations')
         .select(`
           location_id,
@@ -82,23 +119,44 @@ const DayView = () => {
         .eq('course_id', dayNumber)
         .order('order_index');
 
-      if (error) throw error;
+      if (locationsError) throw locationsError;
 
-      const formattedLocations: LocationData[] = (data || []).map(loc => ({
+      const formattedLocations: LocationData[] = (locationsData || []).map(loc => ({
         id: loc.location_id.toString(),
         name: loc.name,
         description: loc.description || '',
         location: loc.location,
         latitude: loc.latitude ? parseFloat(loc.latitude.toString()) : null,
         longitude: loc.longitude ? parseFloat(loc.longitude.toString()) : null,
-        manager_name: "Manager" // We'll fetch this from managers table later
+        manager_name: "Manager"
       }));
 
       setLocations(formattedLocations);
+
+      // Fetch user's visited locations
+      const { data: visits, error: visitsError } = await supabase
+        .from('user_location_visits')
+        .select('location_id')
+        .eq('employee_id', profile.employee_id);
+
+      if (visitsError && visitsError.code !== 'PGRST116') {
+        throw visitsError;
+      }
+
+      const visitedLocationIds = (visits || []).map(v => v.location_id);
+      setVisitedLocations(visitedLocationIds);
+      
+      // Update completed locations based on visits
+      const completedLocationStrings = formattedLocations
+        .filter(loc => visitedLocationIds.includes(parseInt(loc.id)))
+        .map(loc => loc.id);
+      setCompletedLocations(completedLocationStrings);
+
     } catch (error: any) {
+      console.error('Error fetching day data:', error);
       toast({
         title: "Error",
-        description: "Failed to load locations",
+        description: "Failed to load course data",
         variant: "destructive",
       });
     } finally {
@@ -157,8 +215,12 @@ const DayView = () => {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-foreground">Day {dayNumber}: {dayData.title}</h1>
-            <p className="text-sm text-muted-foreground">3 locations to explore</p>
+            <h1 className="text-xl font-bold text-foreground">
+              Day {dayNumber}: {courseData?.title || `Day ${dayNumber}`}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {locations.length} location{locations.length !== 1 ? 's' : ''} to explore
+            </p>
           </div>
           <div className="text-right">
             <div className="text-sm font-medium text-foreground">{Math.round(progress)}%</div>
@@ -278,9 +340,11 @@ const DayView = () => {
             </div>
             
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Day 1 Complete!</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-2">
+                Day {dayNumber} Complete!
+              </h2>
               <p className="text-muted-foreground">
-                Congratulations on completing the Electronics Department orientation
+                Congratulations on completing {courseData?.title || `Day ${dayNumber}`}
               </p>
             </div>
 
@@ -298,15 +362,20 @@ const DayView = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="lg" className="w-full" onClick={() => navigate('/day/2')}>
-              Continue to Day 2
+            <Button 
+              variant="hero" 
+              size="lg" 
+              className="w-full" 
+              onClick={() => navigate(`/day/${dayNumber + 1}`)}
+            >
+              Continue to Day {dayNumber + 1}
             </Button>
           </div>
         )}
 
         {/* AI Assistant */}
         <AIAssistant
-          department="Electronics Department"
+          department={courseData?.title || `Day ${dayNumber}`}
           isMinimized={isAssistantMinimized}
           onToggleMinimize={() => setIsAssistantMinimized(!isAssistantMinimized)}
         />

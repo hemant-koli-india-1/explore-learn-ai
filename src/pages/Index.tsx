@@ -51,9 +51,14 @@ const Index = () => {
   useEffect(() => {
     if (user) {
       fetchDynamicData();
-      checkAdminStatus();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && profileData) {
+      checkAdminStatus();
+    }
+  }, [user, profileData]);
 
   const fetchDynamicData = async () => {
     if (!user?.id) return;
@@ -97,13 +102,13 @@ const Index = () => {
   };
 
   const checkAdminStatus = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !profileData?.employee_id) return;
     
     try {
       const { data: roles } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', user.id);
+        .eq('employee_id', profileData.employee_id);
       
       if (roles && Array.isArray(roles)) {
         const hasAdminRole = roles.some((role: any) => role.role === 'admin');

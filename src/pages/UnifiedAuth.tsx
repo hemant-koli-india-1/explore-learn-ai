@@ -28,14 +28,25 @@ const UnifiedAuth = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // Check if user is admin
-        const { data: roles } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id);
+        // First get user's employee_id from profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('employee_id')
+          .eq('user_id', session.user.id)
+          .single();
         
-        if (roles?.some(r => r.role === 'admin')) {
-          navigate("/admin/dashboard");
+        if (profile) {
+          // Check if user is admin
+          const { data: roles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('employee_id', profile.employee_id);
+          
+          if (roles?.some(r => r.role === 'admin')) {
+            navigate("/admin/dashboard");
+          } else {
+            navigate("/");
+          }
         } else {
           navigate("/");
         }
@@ -89,13 +100,24 @@ const UnifiedAuth = () => {
     if (error) {
       setError(error.message);
     } else {
-      // Check if user is admin after successful login
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', data.user.id);
+      // First get user's employee_id from profiles
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('employee_id')
+        .eq('user_id', data.user.id)
+        .single();
       
-      const isAdmin = roles?.some(r => r.role === 'admin');
+      let isAdmin = false;
+      
+      if (profile) {
+        // Check if user is admin after successful login
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('employee_id', profile.employee_id);
+        
+        isAdmin = roles?.some(r => r.role === 'admin') || false;
+      }
       
       if (userType === "admin" && !isAdmin) {
         setError("You don't have admin privileges.");
